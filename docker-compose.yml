@@ -1,0 +1,47 @@
+services:
+  keycloak:
+    image: quay.io/keycloak/keycloak:latest
+    container_name: keycloak_dev
+    restart: unless-stopped
+    network_mode: host
+    ports:
+      - "9000:9000"
+    environment:
+      KEYCLOAK_ADMIN: admin
+      KEYCLOAK_ADMIN_PASSWORD: admin
+      KC_HTTP_ENABLED: true
+      KC_HTTPS_ENABLED: false
+      KC_HTTP_PORT: 9000
+    volumes:
+      - ./import:/opt/keycloak/data/import
+    command: start-dev --import-realm
+
+  eureka:
+    image: rodrigobrocchi/resqueue-server:latest
+    restart: unless-stopped
+    container_name: eureka_dev
+    network_mode: host
+    ports:
+      - "8761:8761"
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8761/actuator/health"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 10s
+    depends_on:
+      - keycloak
+
+  gateway:
+    image: rodrigobrocchi/resqueue-gateway:latest
+    restart: unless-stopped
+    container_name: gateway_dev
+    network_mode: host
+    ports:
+      - "8080:8080"
+    environment:
+      KC_BASE_ISSUER_URL: http://localhost:9000
+      EUREKA_URL: http://localhost:8761/eureka
+    depends_on:
+      eureka:
+        condition: service_healthy
